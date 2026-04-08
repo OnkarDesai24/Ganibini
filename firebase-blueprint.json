@@ -1,0 +1,51 @@
+{
+  "entities": {
+    "Song": {
+      "title": "Song",
+      "description": "A song with lyrics and metadata",
+      "type": "object",
+      "properties": {
+        "song_name": { "type": "string", "description": "Name of the song" },
+        "slug": { "type": "string", "description": "SEO-friendly URL slug" },
+        "singer": { "type": "string", "description": "Singer name" },
+        "lyricist": { "type": "string", "description": "Lyricist name" },
+        "composer": { "type": "string", "description": "Composer name" },
+        "movie": { "type": "string", "description": "Movie or Album name" },
+        "year": { "type": "number", "description": "Release year" },
+        "language": { "type": "string", "description": "Song language" },
+        "genre": { "type": "string", "description": "Song genre" },
+        "youtube_link": { "type": "string", "description": "YouTube video URL" },
+        "lyrics": { "type": "string", "description": "Song lyrics" },
+        "meaning": { "type": "string", "description": "Meaning or explanation" },
+        "story": { "type": "string", "description": "Interesting facts or story" },
+        "tags": { "type": "array", "items": { "type": "string" }, "description": "Search tags" },
+        "is_trending": { "type": "boolean", "description": "Whether the song is trending" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"], "description": "Approval status" },
+        "submitted_by": { "type": "string", "description": "UID of the user who submitted the song" },
+        "created_at": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["song_name", "slug", "singer", "movie", "youtube_link", "lyrics", "status"]
+    },
+    "User": {
+      "title": "User",
+      "description": "App user profile",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "user"] }
+      },
+      "required": ["uid", "email", "role"]
+    }
+  },
+  "firestore": {
+    "/songs/{songId}": {
+      "schema": "Song",
+      "description": "Collection of songs"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles and roles"
+    }
+  }
+}
