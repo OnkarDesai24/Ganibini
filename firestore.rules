@@ -79,6 +79,10 @@ service cloud.firestore {
     // Domain Validators
     // ===============================================================
 
+    function isRecent(time) {
+      return time > request.time - duration.value(5, 'm') && time < request.time + duration.value(5, 'm');
+    }
+
     function isValidSong(data) {
       return hasRequiredFields(data, ['song_name', 'slug', 'singer', 'movie', 'youtube_link', 'lyrics', 'language', 'created_at', 'status']) &&
              data.song_name is string && data.song_name.size() > 0 && data.song_name.size() <= 200 &&
@@ -90,6 +94,12 @@ service cloud.firestore {
              isValidUrl(data.youtube_link) &&
              (!('year' in data) || (data.year is number && data.year >= 1900 && data.year <= 2100)) &&
              (!('tags' in data) || (data.tags is list && data.tags.size() <= 20)) &&
+             (!('genre' in data) || (data.genre is string && data.genre.size() <= 50)) &&
+             (!('lyricist' in data) || (data.lyricist is string && data.lyricist.size() <= 200)) &&
+             (!('composer' in data) || (data.composer is string && data.composer.size() <= 200)) &&
+             (!('meaning' in data) || (data.meaning is string && data.meaning.size() <= 10000)) &&
+             (!('story' in data) || (data.story is string && data.story.size() <= 10000)) &&
+             (!('is_trending' in data) || (data.is_trending is bool)) &&
              data.status in ['pending', 'approved', 'rejected'] &&
              data.created_at is timestamp;
     }
@@ -98,7 +108,8 @@ service cloud.firestore {
       return hasRequiredFields(data, ['uid', 'email', 'role']) &&
              data.uid == request.auth.uid &&
              isValidEmail(data.email) &&
-             data.role in ['admin', 'contributor', 'user'];
+             data.role in ['admin', 'contributor', 'user'] &&
+             (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 1000));
     }
 
     // ===============================================================
@@ -110,9 +121,12 @@ service cloud.firestore {
       allow read: if resource.data.status == 'approved' || isAdmin();
       
       // Anyone can create a pending song
-      allow create: if isValidSong(request.resource.data) && 
+      allow create: if isAuthenticated() && 
+                      isValidSong(request.resource.data) && 
                       request.resource.data.status == 'pending' &&
-                      (!('submitted_by' in request.resource.data) || request.resource.data.submitted_by == request.auth.uid);
+                      request.resource.data.is_trending == false &&
+                      request.resource.data.submitted_by == request.auth.uid &&
+                      isRecent(request.resource.data.created_at);
       
       // Only admins can update (approve/reject/edit)
       allow update: if isAdmin() && isValidSong(request.resource.data);

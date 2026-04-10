@@ -8,7 +8,8 @@ import SearchPage from '@/src/pages/SearchPage';
 import AdminAddSong from '@/src/pages/AdminAddSong';
 import SubmitLyrics from '@/src/pages/SubmitLyrics';
 import AdminDashboard from '@/src/pages/AdminDashboard';
-import { AboutPage, ContactPage, PrivacyPage, DisclaimerPage } from '@/src/pages/StaticPages';
+import UserDashboard from '@/src/pages/UserDashboard';
+import { AboutPage, ContactPage, PrivacyPage, DisclaimerPage, TermsPage } from '@/src/pages/StaticPages';
 import ErrorBoundary from '@/src/components/ErrorBoundary';
 import { Toaster } from '@/components/ui/sonner';
 
@@ -25,12 +26,14 @@ export default function App() {
               <Route path="/category/:name" element={<CategoryPage />} />
               <Route path="/search" element={<SearchPage />} />
               <Route path="/submit-lyrics" element={<SubmitLyrics />} />
+              <Route path="/dashboard" element={<UserDashboard />} />
               <Route path="/admin/add-song" element={<AdminAddSong />} />
               <Route path="/admin/dashboard" element={<AdminDashboard />} />
               <Route path="/about" element={<AboutPage />} />
               <Route path="/contact" element={<ContactPage />} />
               <Route path="/privacy" element={<PrivacyPage />} />
               <Route path="/disclaimer" element={<DisclaimerPage />} />
+              <Route path="/terms" element={<TermsPage />} />
             </Routes>
           </ErrorBoundary>
         </main>

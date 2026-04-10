@@ -4,17 +4,19 @@ import { Search, Menu, X, Moon, Sun, User, Music } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { auth, db } from '@/src/firebase';
-import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { setDoc, doc, getDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
 
 import { Logo } from './Logo';
+import AuthModal from './AuthModal';
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [user, setUser] = useState(auth.currentUser);
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -24,13 +26,19 @@ export default function Header() {
         // Ensure user profile exists in Firestore
         const userRef = doc(db, 'users', user.uid);
         const userSnap = await getDoc(userRef);
-        if (!userSnap.exists()) {
+        if (userSnap.exists()) {
+          setUserRole(userSnap.data().role);
+        } else {
+          const role = user.email === 'desaisupriya12@gmail.com' ? 'admin' : 'user';
           await setDoc(userRef, {
             uid: user.uid,
             email: user.email,
-            role: user.email === 'desaisupriya12@gmail.com' ? 'admin' : 'user'
+            role: role
           });
+          setUserRole(role);
         }
+      } else {
+        setUserRole(null);
       }
     });
     return () => unsubscribe();
@@ -41,23 +49,6 @@ export default function Header() {
     if (searchQuery.trim()) {
       navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
       setIsMenuOpen(false);
-    }
-  };
-
-  const login = async () => {
-    if (isLoggingIn) return;
-    setIsLoggingIn(true);
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
-
-    try {
-      await signInWithPopup(auth, provider);
-      toast.success("Welcome back!");
-    } catch (error: any) {
-      console.error("Login failed", error);
-      toast.error("Login failed. Please try again.");
-    } finally {
-      setIsLoggingIn(false);
     }
   };
 
@@ -95,25 +86,29 @@ export default function Header() {
           <div className="h-8 w-[2px] bg-secondary/10"></div>
 
           {user && (
-            <Link to="/admin/dashboard">
+            <Link to={userRole === 'admin' ? "/admin/dashboard" : "/dashboard"}>
               <Button variant="outline" size="sm" className="border-2 border-secondary rounded-none font-black uppercase tracking-widest hover:bg-secondary hover:text-white transition-all">
-                Dashboard
+                {userRole === 'admin' ? 'Admin Panel' : 'My Dashboard'}
               </Button>
             </Link>
           )}
           
           {user ? (
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full border-2 border-secondary overflow-hidden">
-                <img src={user.photoURL || ''} alt={user.displayName || ''} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              <div className="w-10 h-10 rounded-full border-2 border-secondary overflow-hidden bg-slate-100 flex items-center justify-center">
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt={user.displayName || ''} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  <User className="w-6 h-6 text-secondary" />
+                )}
               </div>
               <Button variant="ghost" size="sm" onClick={logout} className="font-black uppercase tracking-widest text-[10px] hover:text-primary">
                 Sign Out
               </Button>
             </div>
           ) : (
-            <Button onClick={login} disabled={isLoggingIn} className="bg-secondary text-white rounded-none px-8 h-12 font-black uppercase tracking-widest hover:bg-primary hover:text-secondary transition-all shadow-[4px_4px_0px_0px_rgba(255,107,0,1)] hover:shadow-none active:translate-x-[2px] active:translate-y-[2px]">
-              {isLoggingIn ? '...' : 'Sign In'}
+            <Button onClick={() => setIsAuthModalOpen(true)} className="bg-secondary text-white rounded-none px-8 h-12 font-black uppercase tracking-widest hover:bg-primary hover:text-secondary transition-all shadow-[4px_4px_0px_0px_rgba(255,107,0,1)] hover:shadow-none active:translate-x-[2px] active:translate-y-[2px]">
+              Sign In
             </Button>
           )}
         </div>
@@ -146,16 +141,20 @@ export default function Header() {
             <Link to="/privacy" className="text-lg font-black uppercase tracking-tighter border-b border-secondary/10 pb-2" onClick={() => setIsMenuOpen(false)}>Privacy Policy</Link>
             <Link to="/disclaimer" className="text-lg font-black uppercase tracking-tighter border-b border-secondary/10 pb-2" onClick={() => setIsMenuOpen(false)}>Disclaimer</Link>
             {user && (
-              <Link to="/admin/dashboard" className="text-lg font-black uppercase tracking-tighter text-primary" onClick={() => setIsMenuOpen(false)}>Dashboard</Link>
+              <Link to={userRole === 'admin' ? "/admin/dashboard" : "/dashboard"} className="text-lg font-black uppercase tracking-tighter text-primary" onClick={() => setIsMenuOpen(false)}>
+                {userRole === 'admin' ? 'Admin Panel' : 'My Dashboard'}
+              </Link>
             )}
             {user ? (
               <Button variant="outline" className="w-full border-2 border-secondary rounded-none font-black uppercase tracking-widest" onClick={logout}>Sign Out</Button>
             ) : (
-              <Button className="w-full bg-secondary text-white rounded-none font-black uppercase tracking-widest h-14" onClick={login}>Sign In</Button>
+              <Button className="w-full bg-secondary text-white rounded-none font-black uppercase tracking-widest h-14" onClick={() => { setIsAuthModalOpen(true); setIsMenuOpen(false); }}>Sign In</Button>
             )}
           </nav>
         </div>
       )}
+
+      <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
     </header>
   );
 }

@@ -29,6 +29,7 @@ export default function Footer() {
               <li><Link to="/about" className="text-lg font-black uppercase tracking-tighter hover:text-primary transition-colors">About Us</Link></li>
               <li><Link to="/contact" className="text-lg font-black uppercase tracking-tighter hover:text-primary transition-colors">Contact Us</Link></li>
               <li><Link to="/privacy" className="text-lg font-black uppercase tracking-tighter hover:text-primary transition-colors">Privacy Policy</Link></li>
+              <li><Link to="/terms" className="text-lg font-black uppercase tracking-tighter hover:text-primary transition-colors">Terms of Service</Link></li>
               <li><Link to="/disclaimer" className="text-lg font-black uppercase tracking-tighter hover:text-primary transition-colors">Disclaimer</Link></li>
             </ul>
           </div>

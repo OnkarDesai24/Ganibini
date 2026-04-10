@@ -43,7 +43,9 @@ export default function SongPage() {
         if (!snap.empty) {
           const songData = { id: snap.docs[0].id, ...snap.docs[0].data() } as Song;
           
-          if (songData.status !== 'approved' && !isAdmin) {
+          const isSubmitter = auth.currentUser && songData.submitted_by === auth.currentUser.uid;
+          
+          if (songData.status !== 'approved' && !isAdmin && !isSubmitter) {
             setSong(null);
           } else {
             setSong(songData);
@@ -72,7 +74,7 @@ export default function SongPage() {
 
     fetchSong();
     window.scrollTo(0, 0);
-  }, [slug, isAdmin]);
+  }, [slug, isAdmin, auth.currentUser]);
 
   if (loading) return (
     <div className="h-[60vh] flex items-center justify-center">
