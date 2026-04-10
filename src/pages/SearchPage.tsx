@@ -32,11 +32,15 @@ export default function SearchPage() {
         const allSongs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Song));
         
         if (queryParam) {
-          const filtered = allSongs.filter(s => 
-            s.song_name.toLowerCase().includes(queryParam.toLowerCase()) ||
-            s.singer.toLowerCase().includes(queryParam.toLowerCase()) ||
-            s.movie.toLowerCase().includes(queryParam.toLowerCase())
-          );
+          const filtered = allSongs.filter(s => {
+            const titleEn = s.title?.en || s.song_name || '';
+            const titleMr = s.title?.mr || '';
+            const artists = s.artist_names?.join(' ') || s.singer || '';
+            const movie = s.movie || '';
+            
+            const searchStr = `${titleEn} ${titleMr} ${artists} ${movie}`.toLowerCase();
+            return searchStr.includes(queryParam.toLowerCase());
+          });
           setSongs(filtered);
         } else {
           setSongs(allSongs);

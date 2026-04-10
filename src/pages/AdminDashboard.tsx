@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, query, where, getDocs, updateDoc, doc, deleteDoc, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc, doc, deleteDoc, orderBy, getDoc } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '@/src/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { Song, UserProfile } from '@/src/types';
@@ -22,16 +22,36 @@ export default function AdminDashboard() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // Check role from Firestore
-        const userDoc = await getDocs(query(collection(db, 'users'), where('uid', '==', user.uid)));
-        const userData = userDoc.docs[0]?.data() as UserProfile;
-        
-        if (userData?.role === 'admin' || user.email === ADMIN_EMAIL) {
-          setIsAdmin(true);
-          fetchPendingSongs();
-          fetchUsers();
-        } else {
-          navigate('/');
+        try {
+          // Use getDoc instead of query to avoid permission errors on listing users
+          const userSnap = await getDoc(doc(db, 'users', user.uid));
+          
+          if (userSnap.exists()) {
+            const userData = userSnap.data() as UserProfile;
+            if (userData.role === 'admin' || user.email === ADMIN_EMAIL) {
+              setIsAdmin(true);
+              fetchPendingSongs();
+              fetchUsers();
+            } else {
+              navigate('/');
+            }
+          } else if (user.email === ADMIN_EMAIL) {
+            // Fallback for first-time admin login
+            setIsAdmin(true);
+            fetchPendingSongs();
+            fetchUsers();
+          } else {
+            navigate('/');
+          }
+        } catch (error) {
+          console.error("Error checking admin status", error);
+          if (user.email === ADMIN_EMAIL) {
+            setIsAdmin(true);
+            fetchPendingSongs();
+            fetchUsers();
+          } else {
+            navigate('/');
+          }
         }
       } else {
         navigate('/');
@@ -105,6 +125,13 @@ export default function AdminDashboard() {
         </div>
         <div className="flex gap-2 bg-secondary p-1">
           <Button 
+            variant="outline" 
+            onClick={() => navigate('/admin/add-song')}
+            className="rounded-none font-black uppercase tracking-widest bg-white text-secondary hover:bg-primary hover:text-secondary border-none"
+          >
+            <Music className="w-4 h-4 mr-2" /> Add New Song
+          </Button>
+          <Button 
             variant={activeTab === 'songs' ? 'default' : 'ghost'} 
             onClick={() => setActiveTab('songs')}
             className={`rounded-none font-black uppercase tracking-widest ${activeTab === 'songs' ? 'bg-primary text-secondary' : 'text-white'}`}
@@ -133,9 +160,13 @@ export default function AdminDashboard() {
               {pendingSongs.map(song => (
                 <div key={song.id} className="border-2 border-secondary p-6 bg-white flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                   <div>
-                    <h3 className="text-2xl font-black uppercase tracking-tighter">{song.song_name}</h3>
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">{song.singer} • {song.movie}</p>
-                    <p className="text-[10px] text-primary font-black uppercase tracking-widest mt-2">Submitted by: {song.submitted_by}</p>
+                    <h3 className="text-2xl font-black uppercase tracking-tighter">
+                      {song.title?.mr || song.title?.en || song.song_name}
+                    </h3>
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                      {song.artist_names?.join(', ') || song.singer} • {song.movie}
+                    </p>
+                    <p className="text-[10px] text-primary font-black uppercase tracking-widest mt-2">Submitted by: {song.submitted_by_name || song.submitted_by}</p>
                   </div>
                   <div className="flex gap-2">
                     <Button variant="outline" onClick={() => navigate(`/lyrics/${song.slug}`)} className="border-2 border-secondary rounded-none font-black uppercase tracking-widest text-[10px]">

@@ -25,7 +25,8 @@ export default function SubmitLyrics() {
   }, []);
 
   const [formData, setFormData] = useState({
-    song_name: '',
+    title_en: '',
+    title_mr: '',
     singer: '',
     lyricist: '',
     composer: '',
@@ -34,7 +35,7 @@ export default function SubmitLyrics() {
     language: 'Marathi',
     genre: 'Romantic',
     youtube_link: '',
-    lyrics: '',
+    lyrics_mr: '',
     meaning: '',
     story: '',
     tags: '',
@@ -42,11 +43,11 @@ export default function SubmitLyrics() {
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
-    if (!formData.song_name.trim()) newErrors.song_name = "Song name is required";
+    if (!formData.title_mr.trim() && !formData.title_en.trim()) newErrors.title_mr = "At least one title is required";
     if (!formData.singer.trim()) newErrors.singer = "Singer name is required";
     if (!formData.movie.trim()) newErrors.movie = "Movie or Album name is required";
-    if (!formData.lyrics.trim()) newErrors.lyrics = "Lyrics are required";
-    if (formData.lyrics.trim().length < 100) newErrors.lyrics = "Lyrics are too short. Please provide full lyrics (min 100 characters).";
+    if (!formData.lyrics_mr.trim()) newErrors.lyrics_mr = "Lyrics are required";
+    if (formData.lyrics_mr.trim().length < 100) newErrors.lyrics_mr = "Lyrics are too short. Please provide full lyrics (min 100 characters).";
     
     if (formData.youtube_link) {
       const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+$/;
@@ -102,7 +103,7 @@ export default function SubmitLyrics() {
     setSubmitting(true);
 
     try {
-      const slug = generateSlug(formData.song_name);
+      const slug = generateSlug(formData.title_en || formData.title_mr);
       
       // Check for duplicate slug
       const existingQ = query(collection(db, 'songs'), where('slug', '==', slug));
@@ -115,13 +116,26 @@ export default function SubmitLyrics() {
       }
 
       const songData = {
-        ...formData,
+        title: {
+          en: formData.title_en,
+          mr: formData.title_mr,
+        },
         slug,
+        artist_names: formData.singer.split(',').map(s => s.trim()).filter(s => s),
+        language: formData.language,
+        lyrics: {
+          mr: formData.lyrics_mr,
+        },
         status: 'pending',
         submitted_by: user.uid,
         submitted_by_email: user.email,
         submitted_by_name: user.displayName || 'User',
         year: Number(formData.year),
+        movie: formData.movie,
+        genre: formData.genre,
+        youtube_link: formData.youtube_link,
+        meaning: formData.meaning,
+        story: formData.story,
         tags: formData.tags.split(',').map(t => t.trim()).filter(t => t),
         created_at: serverTimestamp(),
         is_trending: false,
@@ -185,24 +199,36 @@ export default function SubmitLyrics() {
           <form onSubmit={handleSubmit} className="space-y-12">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
               <div className="space-y-3">
-                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Song Name *</label>
+                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Song Name (Marathi) *</label>
                 <Input 
-                  name="song_name" 
-                  value={formData.song_name} 
+                  name="title_mr" 
+                  value={formData.title_mr} 
                   onChange={handleChange} 
-                  placeholder="E.G. SAIRAT ZALA JI"
-                  className={`rounded-none border-2 h-14 font-black uppercase tracking-tight text-lg ${errors.song_name ? 'border-red-500 bg-red-50' : 'border-secondary focus:border-primary'}`} 
+                  placeholder="E.G. सैराट झालं जी"
+                  className={`rounded-none border-2 h-14 font-black tracking-tight text-lg ${errors.title_mr ? 'border-red-500 bg-red-50' : 'border-secondary focus:border-primary'}`} 
                 />
-                {errors.song_name && <p className="text-red-500 text-[10px] font-black uppercase tracking-widest">{errors.song_name}</p>}
+                {errors.title_mr && <p className="text-red-500 text-[10px] font-black uppercase tracking-widest">{errors.title_mr}</p>}
               </div>
 
               <div className="space-y-3">
-                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Singer *</label>
+                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Song Name (English) *</label>
+                <Input 
+                  name="title_en" 
+                  value={formData.title_en} 
+                  onChange={handleChange} 
+                  placeholder="E.G. SAIRAT ZALA JI"
+                  className={`rounded-none border-2 h-14 font-black uppercase tracking-tight text-lg ${errors.title_en ? 'border-red-500 bg-red-50' : 'border-secondary focus:border-primary'}`} 
+                />
+                {errors.title_en && <p className="text-red-500 text-[10px] font-black uppercase tracking-widest">{errors.title_en}</p>}
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Singer(s) (Comma separated) *</label>
                 <Input 
                   name="singer" 
                   value={formData.singer} 
                   onChange={handleChange} 
-                  placeholder="E.G. AJAY GOGAVALE"
+                  placeholder="E.G. AJAY GOGAVALE, SHREYA GHOSHAL"
                   className={`rounded-none border-2 h-14 font-black uppercase tracking-tight text-lg ${errors.singer ? 'border-red-500 bg-red-50' : 'border-secondary focus:border-primary'}`} 
                 />
                 {errors.singer && <p className="text-red-500 text-[10px] font-black uppercase tracking-widest">{errors.singer}</p>}
@@ -263,19 +289,19 @@ export default function SubmitLyrics() {
             <div className="space-y-3">
               <div className="flex justify-between items-end">
                 <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Full Lyrics *</label>
-                <span className={`text-[10px] font-black uppercase ${formData.lyrics.length < 100 ? 'text-red-500' : 'text-green-600'}`}>
-                  {formData.lyrics.length} Characters
+                <span className={`text-[10px] font-black uppercase ${formData.lyrics_mr.length < 100 ? 'text-red-500' : 'text-green-600'}`}>
+                  {formData.lyrics_mr.length} Characters
                 </span>
               </div>
               <Textarea 
-                name="lyrics" 
+                name="lyrics_mr" 
                 rows={15} 
-                value={formData.lyrics} 
+                value={formData.lyrics_mr} 
                 onChange={handleChange} 
                 placeholder="TYPE OR PASTE LYRICS HERE..."
-                className={`rounded-none border-2 font-black text-2xl leading-tight p-8 ${errors.lyrics ? 'border-red-500 bg-red-50' : 'border-secondary focus:border-primary'}`} 
+                className={`rounded-none border-2 font-black text-2xl leading-tight p-8 ${errors.lyrics_mr ? 'border-red-500 bg-red-50' : 'border-secondary focus:border-primary'}`} 
               />
-              {errors.lyrics && <p className="text-red-500 text-[10px] font-black uppercase tracking-widest">{errors.lyrics}</p>}
+              {errors.lyrics_mr && <p className="text-red-500 text-[10px] font-black uppercase tracking-widest">{errors.lyrics_mr}</p>}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">

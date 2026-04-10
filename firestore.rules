@@ -8,31 +8,33 @@ service cloud.firestore {
     // Collection: songs
     // Document ID: auto-generated or slug
     // Fields:
-    //   - song_name: string (required, 1-200 chars)
-    //   - slug: string (required, 1-200 chars, unique-ish)
-    //   - singer: string (required, 1-200 chars)
-    //   - lyricist: string (optional, 1-200 chars)
-    //   - composer: string (optional, 1-200 chars)
-    //   - movie: string (required, 1-200 chars)
-    //   - year: number (optional, 1900-2100)
-    //   - language: string (required, 1-50 chars)
-    //   - genre: string (optional, 1-50 chars)
-    //   - youtube_link: string (required, valid URL)
-    //   - lyrics: string (required, 1-50000 chars)
-    //   - meaning: string (optional, 1-10000 chars)
-    //   - story: string (optional, 1-10000 chars)
-    //   - tags: list (optional, max 20 items, each < 50 chars)
-    //   - is_trending: bool (optional)
-    //   - status: string (required, 'pending', 'approved', 'rejected')
-    //   - submitted_by: string (optional, uid)
+    //   - title: map { en: string, mr: string } (required)
+    //   - slug: string (required)
+    //   - artist_names: list of strings (required)
+    //   - language: string (required)
+    //   - lyrics: map { mr: string } (required)
+    //   - status: string ('pending', 'approved', 'rejected') (required)
     //   - created_at: timestamp (required)
+    //   - movie: string (optional)
+    //   - youtube_link: string (optional)
+    //   - is_trending: bool (optional)
+    //   - genre: string (optional)
+    //   - year: number (optional)
+    //   - tags: list (optional)
+    //   - meaning: string (optional)
+    //   - story: string (optional)
+    //   - submitted_by: string (uid) (optional)
+    //   - submitted_by_name: string (optional)
+    //   - submitted_by_email: string (optional)
+    //   - lyricist: string (optional)
+    //   - composer: string (optional)
     //
     // Collection: users
     // Document ID: userId (auth.uid)
     // Fields:
     //   - uid: string (required)
     //   - email: string (required)
-    //   - role: string (required, 'admin', 'contributor', 'user')
+    //   - role: string ('admin', 'contributor', 'user') (required)
     //
     // ===============================================================
 
@@ -46,17 +48,17 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() &&
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          (request.auth.token.email == "desaisupriya12@gmail.com" && request.auth.token.email_verified == true));
-    }
-
-    function isContributor() {
-      return isAuthenticated() && 
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'contributor']);
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "desaisupriya12@gmail.com" && request.auth.token.email_verified == true));
     }
 
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isRecent(time) {
+      return time > request.time - duration.value(5, 'm') && time < request.time + duration.value(5, 'm');
     }
 
     function isValidUrl(url) {
@@ -67,49 +69,30 @@ service cloud.firestore {
       return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
     }
 
-    function hasRequiredFields(data, fields) {
-      return data.keys().hasAll(fields);
-    }
-
-    function hasOnlyAllowedFields(data, fields) {
-      return data.keys().hasOnly(fields);
-    }
-
     // ===============================================================
     // Domain Validators
     // ===============================================================
 
-    function isRecent(time) {
-      return time > request.time - duration.value(5, 'm') && time < request.time + duration.value(5, 'm');
-    }
-
     function isValidSong(data) {
-      return hasRequiredFields(data, ['song_name', 'slug', 'singer', 'movie', 'youtube_link', 'lyrics', 'language', 'created_at', 'status']) &&
-             data.song_name is string && data.song_name.size() > 0 && data.song_name.size() <= 200 &&
-             data.slug is string && data.slug.size() > 0 && data.slug.size() <= 200 &&
-             data.singer is string && data.singer.size() > 0 && data.singer.size() <= 200 &&
-             data.movie is string && data.movie.size() > 0 && data.movie.size() <= 200 &&
-             data.lyrics is string && data.lyrics.size() > 0 && data.lyrics.size() <= 50000 &&
-             data.language is string && data.language.size() > 0 && data.language.size() <= 50 &&
-             isValidUrl(data.youtube_link) &&
+      return data.keys().hasAll(['title', 'slug', 'artist_names', 'language', 'lyrics', 'status', 'created_at']) &&
+             data.title is map && data.title.en is string && data.title.mr is string &&
+             data.slug is string && data.slug.size() > 0 &&
+             data.artist_names is list &&
+             data.language is string &&
+             data.lyrics is map && data.lyrics.mr is string &&
+             data.status in ['pending', 'approved', 'rejected'] &&
+             data.created_at is timestamp &&
+             (!('youtube_link' in data) || isValidUrl(data.youtube_link)) &&
              (!('year' in data) || (data.year is number && data.year >= 1900 && data.year <= 2100)) &&
              (!('tags' in data) || (data.tags is list && data.tags.size() <= 20)) &&
-             (!('genre' in data) || (data.genre is string && data.genre.size() <= 50)) &&
-             (!('lyricist' in data) || (data.lyricist is string && data.lyricist.size() <= 200)) &&
-             (!('composer' in data) || (data.composer is string && data.composer.size() <= 200)) &&
-             (!('meaning' in data) || (data.meaning is string && data.meaning.size() <= 10000)) &&
-             (!('story' in data) || (data.story is string && data.story.size() <= 10000)) &&
-             (!('is_trending' in data) || (data.is_trending is bool)) &&
-             data.status in ['pending', 'approved', 'rejected'] &&
-             data.created_at is timestamp;
+             (!('is_trending' in data) || (data.is_trending is bool));
     }
 
     function isValidUser(data) {
-      return hasRequiredFields(data, ['uid', 'email', 'role']) &&
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
              data.uid == request.auth.uid &&
              isValidEmail(data.email) &&
-             data.role in ['admin', 'contributor', 'user'] &&
-             (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 1000));
+             data.role in ['admin', 'contributor', 'user'];
     }
 
     // ===============================================================
@@ -117,20 +100,18 @@ service cloud.firestore {
     // ===============================================================
 
     match /songs/{songId} {
-      // Only approved songs are publicly readable
+      // Allow public read for approved songs
       allow read: if resource.data.status == 'approved' || isAdmin();
       
-      // Anyone can create a pending song
+      // Allow authenticated users to create pending songs
       allow create: if isAuthenticated() && 
                       isValidSong(request.resource.data) && 
                       request.resource.data.status == 'pending' &&
-                      request.resource.data.is_trending == false &&
                       request.resource.data.submitted_by == request.auth.uid &&
                       isRecent(request.resource.data.created_at);
       
-      // Only admins can update (approve/reject/edit)
+      // Only admins can update or delete
       allow update: if isAdmin() && isValidSong(request.resource.data);
-      
       allow delete: if isAdmin();
     }
 

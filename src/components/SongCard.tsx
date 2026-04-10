@@ -14,15 +14,18 @@ export default function SongCard({ song }: SongCardProps) {
     return (match && match[2].length === 11) ? match[2] : null;
   };
 
-  const videoId = getYoutubeId(song.youtube_link);
+  const videoId = getYoutubeId(song.youtube_link || '');
   const thumbnailUrl = videoId ? `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg` : null;
+
+  const displayTitle = song.title?.mr || song.title?.en || song.song_name || 'Untitled Song';
+  const displayArtists = song.artist_names?.join(', ') || song.singer || 'Unknown Artist';
 
   return (
     <Link to={`/lyrics/${song.slug}`} className="group block">
       <div className="relative aspect-[3/4] overflow-hidden border-2 border-secondary bg-secondary">
         <img
           src={thumbnailUrl || `https://picsum.photos/seed/${song.id}/600/800`}
-          alt={song.song_name}
+          alt={displayTitle}
           className="w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-110 transition-all duration-700"
           referrerPolicy="no-referrer"
         />
@@ -31,7 +34,7 @@ export default function SongCard({ song }: SongCardProps) {
         {/* Editorial Overlay */}
         <div className="absolute top-4 left-4 right-4 flex justify-between items-start">
           <div className="bg-primary text-secondary px-2 py-1 text-[10px] font-black uppercase tracking-widest">
-            {song.genre || 'Marathi'}
+            {song.genre || song.language || 'Marathi'}
           </div>
           {song.is_trending && (
             <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center brutal-border">
@@ -43,10 +46,10 @@ export default function SongCard({ song }: SongCardProps) {
         <div className="absolute bottom-0 left-0 right-0 p-6 translate-y-4 group-hover:translate-y-0 transition-transform duration-500">
           <div className="space-y-1">
             <h3 className="text-2xl font-black uppercase tracking-tighter text-white leading-none">
-              {song.song_name}
+              {displayTitle}
             </h3>
             <p className="text-xs font-bold uppercase tracking-widest text-primary">
-              {song.movie || song.singer}
+              {song.movie || displayArtists}
             </p>
           </div>
         </div>
@@ -55,7 +58,7 @@ export default function SongCard({ song }: SongCardProps) {
       {/* Meta Info below card */}
       <div className="mt-4 flex items-center justify-between">
         <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-          {song.singer?.split(',')[0]}
+          {displayArtists.split(',')[0]}
         </span>
         <div className="h-[1px] flex-1 mx-4 bg-secondary/10"></div>
         <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">

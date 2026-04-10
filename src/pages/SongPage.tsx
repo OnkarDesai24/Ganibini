@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { collection, query, where, getDocs, limit, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, orderBy, getDoc, doc } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '@/src/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { Song, UserProfile } from '@/src/types';
@@ -22,10 +22,18 @@ export default function SongPage() {
   useEffect(() => {
     const checkAdmin = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        const userDoc = await getDocs(query(collection(db, 'users'), where('uid', '==', user.uid)));
-        const userData = userDoc.docs[0]?.data() as UserProfile;
-        if (userData?.role === 'admin' || user.email === 'desaisupriya12@gmail.com') {
-          setIsAdmin(true);
+        try {
+          const userSnap = await getDoc(doc(db, 'users', user.uid));
+          if (userSnap.exists()) {
+            const userData = userSnap.data() as UserProfile;
+            if (userData.role === 'admin' || user.email === 'desaisupriya12@gmail.com') {
+              setIsAdmin(true);
+            }
+          } else if (user.email === 'desaisupriya12@gmail.com') {
+            setIsAdmin(true);
+          }
+        } catch (error) {
+          console.error("Error checking admin status", error);
         }
       }
     });
@@ -37,32 +45,49 @@ export default function SongPage() {
       if (!slug) return;
       setLoading(true);
       try {
-        const q = query(collection(db, 'songs'), where('slug', '==', slug), limit(1));
+        // If admin, we can fetch any status. If not, we only fetch approved.
+        // However, to keep it simple and avoid permission errors for public users,
+        // we always try to fetch with status='approved' first, or handle it based on auth.
+        let q;
+        if (isAdmin) {
+          q = query(collection(db, 'songs'), where('slug', '==', slug), limit(1));
+        } else {
+          q = query(collection(db, 'songs'), where('slug', '==', slug), where('status', '==', 'approved'), limit(1));
+        }
+        
         const snap = await getDocs(q);
         
         if (!snap.empty) {
-          const songData = { id: snap.docs[0].id, ...snap.docs[0].data() } as Song;
-          
-          const isSubmitter = auth.currentUser && songData.submitted_by === auth.currentUser.uid;
-          
-          if (songData.status !== 'approved' && !isAdmin && !isSubmitter) {
-            setSong(null);
-          } else {
-            setSong(songData);
+          const songData = { id: snap.docs[0].id, ...(snap.docs[0].data() as object) } as Song;
+          setSong(songData);
 
-            // Fetch Related
-            const relatedQ = query(
-              collection(db, 'songs'),
-              where('movie', '==', songData.movie),
-              where('status', '==', 'approved'),
-              limit(5)
+          // Fetch Related
+          const relatedQ = query(
+            collection(db, 'songs'),
+            where('movie', '==', songData.movie),
+            where('status', '==', 'approved'),
+            limit(5)
+          );
+          const relatedSnap = await getDocs(relatedQ);
+          setRelatedSongs(
+            relatedSnap.docs
+              .map(d => ({ id: d.id, ...(d.data() as object) } as Song))
+              .filter(s => s.slug !== slug)
+          );
+        } else if (!isAdmin) {
+          // If not found as approved, maybe it's pending and user is the owner?
+          // We can try one more fetch if authenticated
+          if (auth.currentUser) {
+            const ownerQ = query(
+              collection(db, 'songs'), 
+              where('slug', '==', slug), 
+              where('submitted_by', '==', auth.currentUser.uid),
+              limit(1)
             );
-            const relatedSnap = await getDocs(relatedQ);
-            setRelatedSongs(
-              relatedSnap.docs
-                .map(doc => ({ id: doc.id, ...doc.data() } as Song))
-                .filter(s => s.slug !== slug)
-            );
+            const ownerSnap = await getDocs(ownerQ);
+            if (!ownerSnap.empty) {
+              setSong({ id: ownerSnap.docs[0].id, ...(ownerSnap.docs[0].data() as object) } as Song);
+            }
           }
         }
       } catch (error) {
@@ -88,7 +113,11 @@ export default function SongPage() {
     const match = url.match(regExp);
     return (match && match[2].length === 11) ? match[2] : null;
   };
-  const videoId = getYoutubeId(song.youtube_link);
+  const videoId = getYoutubeId(song.youtube_link || '');
+
+  const displayTitle = song.title?.mr || song.title?.en || song.song_name || 'Untitled Song';
+  const displayArtists = song.artist_names?.join(', ') || song.singer || 'Unknown Artist';
+  const displayLyrics = song.lyrics?.mr || (typeof song.lyrics === 'string' ? song.lyrics : '') || 'Lyrics not available.';
 
   return (
     <div className="pb-24">
@@ -97,17 +126,17 @@ export default function SongPage() {
         <div className="p-8 md:p-16 flex flex-col justify-center space-y-8 border-b-2 lg:border-b-0 lg:border-r-2 border-secondary">
           <div className="flex gap-2">
             <span className="bg-primary text-secondary px-2 py-1 text-[10px] font-black uppercase tracking-widest">{song.language}</span>
-            <span className="border-2 border-secondary px-2 py-1 text-[10px] font-black uppercase tracking-widest">{song.genre}</span>
+            <span className="border-2 border-secondary px-2 py-1 text-[10px] font-black uppercase tracking-widest">{song.genre || 'Marathi'}</span>
             {song.status !== 'approved' && (
               <span className="bg-red-600 text-white px-2 py-1 text-[10px] font-black uppercase tracking-widest">Pending Review</span>
             )}
           </div>
           <h1 className="text-[10vw] lg:text-[6vw] font-black uppercase leading-[0.85] tracking-tighter text-secondary">
-            {song.song_name}
+            {displayTitle}
           </h1>
           <div className="space-y-2">
             <p className="text-xl font-black uppercase tracking-widest text-primary">{song.movie}</p>
-            <p className="text-sm font-bold text-slate-400 uppercase tracking-[0.3em]">{song.singer}</p>
+            <p className="text-sm font-bold text-slate-400 uppercase tracking-[0.3em]">{displayArtists}</p>
           </div>
         </div>
         <div className="relative aspect-video lg:aspect-auto bg-secondary">
@@ -116,7 +145,7 @@ export default function SongPage() {
               width="100%"
               height="100%"
               src={`https://www.youtube.com/embed/${videoId}?autoplay=0`}
-              title={song.song_name}
+              title={displayTitle}
               frameBorder="0"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
@@ -144,8 +173,8 @@ export default function SongPage() {
                   <Button variant="outline" size="sm" className="border-2 border-secondary rounded-none font-black uppercase tracking-widest text-[10px]">Share</Button>
                 </div>
               </div>
-              <div className="whitespace-pre-wrap text-3xl md:text-5xl leading-[1.1] font-black text-secondary tracking-tight">
-                {song.lyrics}
+              <div className="whitespace-pre-wrap text-3xl md:text-5xl leading-[1.2] font-black text-secondary tracking-tight font-serif">
+                {displayLyrics}
               </div>
             </section>
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, getDoc, doc } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '@/src/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { UserProfile } from '@/src/types';
@@ -22,7 +22,8 @@ export default function AdminAddSong() {
   const [submitting, setSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
-    song_name: '',
+    title_en: '',
+    title_mr: '',
     singer: '',
     lyricist: '',
     composer: '',
@@ -31,7 +32,7 @@ export default function AdminAddSong() {
     language: 'Marathi',
     genre: 'Romantic',
     youtube_link: '',
-    lyrics: '',
+    lyrics_mr: '',
     meaning: '',
     story: '',
     tags: '',
@@ -41,13 +42,27 @@ export default function AdminAddSong() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        const userDoc = await getDocs(query(collection(db, 'users'), where('uid', '==', user.uid)));
-        const userData = userDoc.docs[0]?.data() as UserProfile;
-        
-        if (userData?.role === 'admin' || user.email === ADMIN_EMAIL) {
-          setIsAdmin(true);
-        } else {
-          navigate('/');
+        try {
+          const userSnap = await getDoc(doc(db, 'users', user.uid));
+          if (userSnap.exists()) {
+            const userData = userSnap.data() as UserProfile;
+            if (userData.role === 'admin' || user.email === ADMIN_EMAIL) {
+              setIsAdmin(true);
+            } else {
+              navigate('/');
+            }
+          } else if (user.email === ADMIN_EMAIL) {
+            setIsAdmin(true);
+          } else {
+            navigate('/');
+          }
+        } catch (error) {
+          console.error("Error checking admin status", error);
+          if (user.email === ADMIN_EMAIL) {
+            setIsAdmin(true);
+          } else {
+            navigate('/');
+          }
         }
       } else {
         navigate('/');
@@ -81,20 +96,56 @@ export default function AdminAddSong() {
 
     setSubmitting(true);
     try {
-      const slug = generateSlug(formData.song_name);
+      const slug = generateSlug(formData.title_en || formData.title_mr);
       const songData = {
-        ...formData,
+        title: {
+          en: formData.title_en,
+          mr: formData.title_mr,
+        },
         slug,
+        artist_names: formData.singer.split(',').map(s => s.trim()).filter(s => s),
+        language: formData.language,
+        lyrics: {
+          mr: formData.lyrics_mr,
+        },
         status: 'approved',
         submitted_by: auth.currentUser?.uid,
         year: Number(formData.year),
+        movie: formData.movie,
+        genre: formData.genre,
+        youtube_link: formData.youtube_link,
+        is_trending: formData.is_trending,
+        meaning: formData.meaning,
+        story: formData.story,
         tags: formData.tags.split(',').map(t => t.trim()).filter(t => t),
         created_at: serverTimestamp(),
       };
 
       await addDoc(collection(db, 'songs'), songData);
       toast.success('Song added successfully!');
-      navigate(`/lyrics/${slug}`);
+      
+      if ((e.nativeEvent as any).submitter?.name === 'addAnother') {
+        setFormData({
+          title_en: '',
+          title_mr: '',
+          singer: '',
+          lyricist: '',
+          composer: '',
+          movie: '',
+          year: new Date().getFullYear(),
+          language: 'Marathi',
+          genre: 'Romantic',
+          youtube_link: '',
+          lyrics_mr: '',
+          meaning: '',
+          story: '',
+          tags: '',
+          is_trending: false,
+        });
+        window.scrollTo(0, 0);
+      } else {
+        navigate(`/lyrics/${slug}`);
+      }
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'songs');
       toast.error('Failed to add song.');
@@ -128,11 +179,15 @@ export default function AdminAddSong() {
           <form onSubmit={handleSubmit} className="space-y-10">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="space-y-3">
-                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Song Name *</label>
-                <Input name="song_name" required value={formData.song_name} onChange={handleChange} className="rounded-none border-2 border-border focus:border-secondary h-12 font-bold" />
+                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Title (Marathi) *</label>
+                <Input name="title_mr" required value={formData.title_mr} onChange={handleChange} className="rounded-none border-2 border-border focus:border-secondary h-12 font-bold" />
               </div>
               <div className="space-y-3">
-                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Singer *</label>
+                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Title (English) *</label>
+                <Input name="title_en" required value={formData.title_en} onChange={handleChange} className="rounded-none border-2 border-border focus:border-secondary h-12 font-bold" />
+              </div>
+              <div className="space-y-3">
+                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Singer(s) (Comma separated) *</label>
                 <Input name="singer" required value={formData.singer} onChange={handleChange} className="rounded-none border-2 border-border focus:border-secondary h-12 font-bold" />
               </div>
               <div className="space-y-3">
@@ -162,8 +217,8 @@ export default function AdminAddSong() {
             </div>
 
             <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Lyrics *</label>
-              <Textarea name="lyrics" required rows={12} value={formData.lyrics} onChange={handleChange} className="rounded-none border-2 border-border focus:border-secondary font-bold text-lg leading-tight" />
+              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Lyrics (Marathi) *</label>
+              <Textarea name="lyrics_mr" required rows={12} value={formData.lyrics_mr} onChange={handleChange} className="rounded-none border-2 border-border focus:border-secondary font-bold text-lg leading-tight" />
             </div>
 
             <div className="space-y-3">
@@ -183,9 +238,14 @@ export default function AdminAddSong() {
               </label>
             </div>
 
-            <Button type="submit" disabled={submitting} className="w-full bg-primary text-secondary h-16 text-xl font-black uppercase tracking-[0.2em] border-2 border-secondary shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all">
-              {submitting ? 'Publishing...' : 'Publish Lyrics'}
-            </Button>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Button type="submit" disabled={submitting} className="w-full bg-primary text-secondary h-16 text-xl font-black uppercase tracking-[0.2em] border-2 border-secondary shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all">
+                {submitting ? 'Publishing...' : 'Publish Lyrics'}
+              </Button>
+              <Button type="submit" name="addAnother" disabled={submitting} variant="outline" className="w-full border-4 border-secondary h-16 text-xl font-black uppercase tracking-[0.2em] hover:bg-secondary hover:text-white transition-all">
+                {submitting ? 'Saving...' : 'Publish & Add Another'}
+              </Button>
+            </div>
           </form>
         </div>
       </div>
