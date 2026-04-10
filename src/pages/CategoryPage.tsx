@@ -20,7 +20,7 @@ export default function CategoryPage() {
         const q = query(
           collection(db, 'songs'),
           where('genre', '==', categoryName),
-          where('status', '==', 'approved')
+          where('status', 'in', ['approved', 'Approved', 'APPROVED'])
         );
         const snap = await getDocs(q);
         const songsData = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Song));

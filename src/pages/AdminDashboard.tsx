@@ -16,8 +16,9 @@ export default function AdminDashboard() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pendingSongs, setPendingSongs] = useState<Song[]>([]);
+  const [allSongs, setAllSongs] = useState<Song[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
-  const [activeTab, setActiveTab] = useState<'songs' | 'users'>('songs');
+  const [activeTab, setActiveTab] = useState<'songs' | 'all' | 'users'>('songs');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -31,6 +32,7 @@ export default function AdminDashboard() {
             if (userData.role === 'admin' || user.email === ADMIN_EMAIL) {
               setIsAdmin(true);
               fetchPendingSongs();
+              fetchAllSongs();
               fetchUsers();
             } else {
               navigate('/');
@@ -39,6 +41,7 @@ export default function AdminDashboard() {
             // Fallback for first-time admin login
             setIsAdmin(true);
             fetchPendingSongs();
+            fetchAllSongs();
             fetchUsers();
           } else {
             navigate('/');
@@ -48,6 +51,7 @@ export default function AdminDashboard() {
           if (user.email === ADMIN_EMAIL) {
             setIsAdmin(true);
             fetchPendingSongs();
+            fetchAllSongs();
             fetchUsers();
           } else {
             navigate('/');
@@ -80,12 +84,23 @@ export default function AdminDashboard() {
     }
   };
 
+  const fetchAllSongs = async () => {
+    try {
+      const snap = await getDocs(collection(db, 'songs'));
+      setAllSongs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Song)));
+    } catch (error) {
+      console.error("Error fetching all songs", error);
+      toast.error("Failed to fetch all songs. Check security rules.");
+    }
+  };
+
   const fetchUsers = async () => {
     try {
       const snap = await getDocs(collection(db, 'users'));
       setUsers(snap.docs.map(doc => ({ ...doc.data() } as UserProfile)));
     } catch (error) {
       console.error("Error fetching users", error);
+      toast.error("Failed to fetch users. Check security rules.");
     }
   };
 
@@ -131,8 +146,23 @@ export default function AdminDashboard() {
         <div>
           <h1 className="text-6xl font-black uppercase tracking-tighter">Admin <span className="text-primary">Panel</span></h1>
           <p className="text-slate-500 font-bold uppercase tracking-widest text-xs mt-2">Manage content and community</p>
+          <div className="mt-4 p-2 bg-slate-100 border border-slate-200 inline-block">
+            <p className="text-[8px] font-mono text-slate-500">Project: ganibini-e39a7 | DB: (default)</p>
+          </div>
         </div>
         <div className="flex gap-2 bg-secondary p-1">
+          <Button 
+            variant="ghost" 
+            onClick={() => {
+              fetchPendingSongs();
+              fetchAllSongs();
+              fetchUsers();
+              toast.info('Data refreshed');
+            }}
+            className="rounded-none font-black uppercase tracking-widest text-white hover:bg-primary hover:text-secondary"
+          >
+            Refresh
+          </Button>
           <Button 
             variant="outline" 
             onClick={() => navigate('/admin/add-song')}
@@ -146,6 +176,13 @@ export default function AdminDashboard() {
             className={`rounded-none font-black uppercase tracking-widest ${activeTab === 'songs' ? 'bg-primary text-secondary' : 'text-white'}`}
           >
             <Music className="w-4 h-4 mr-2" /> Submissions
+          </Button>
+          <Button 
+            variant={activeTab === 'all' ? 'default' : 'ghost'} 
+            onClick={() => setActiveTab('all')}
+            className={`rounded-none font-black uppercase tracking-widest ${activeTab === 'all' ? 'bg-primary text-secondary' : 'text-white'}`}
+          >
+            <Shield className="w-4 h-4 mr-2" /> All Songs
           </Button>
           <Button 
             variant={activeTab === 'users' ? 'default' : 'ghost'} 
@@ -192,6 +229,56 @@ export default function AdminDashboard() {
               ))}
             </div>
           )}
+        </div>
+      ) : activeTab === 'all' ? (
+        <div className="space-y-6">
+          <h2 className="text-2xl font-black uppercase tracking-tighter mb-8">All Songs Database ({allSongs.length})</h2>
+          <div className="grid grid-cols-1 gap-4">
+            {allSongs.map(song => (
+              <div key={song.id} className="border-2 border-secondary p-6 bg-white flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-1">
+                    <h3 className="text-xl font-black uppercase tracking-tighter">
+                      {song.title?.mr || song.title?.en || song.song_name}
+                    </h3>
+                    <span className={`px-2 py-0.5 text-[8px] font-black uppercase tracking-widest ${
+                      song.status === 'approved' ? 'bg-green-100 text-green-800' : 
+                      song.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
+                    }`}>
+                      {song.status}
+                    </span>
+                  </div>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                    Slug: <span className="text-secondary">{song.slug}</span> • ID: {song.id}
+                  </p>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                    Artists: {song.artist_names?.join(', ') || song.singer} • Movie: {song.movie}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => navigate(`/lyrics/${song.slug}`)} className="border-2 border-secondary rounded-none font-black uppercase tracking-widest text-[10px]">
+                    <Eye className="w-4 h-4 mr-2" /> View
+                  </Button>
+                  <Button 
+                    onClick={async () => {
+                      if (window.confirm('Are you sure you want to delete this song?')) {
+                        try {
+                          await deleteDoc(doc(db, 'songs', song.id!));
+                          toast.success('Song deleted');
+                          fetchAllSongs();
+                        } catch (e) {
+                          toast.error('Delete failed');
+                        }
+                      }
+                    }} 
+                    className="bg-red-600 text-white rounded-none font-black uppercase tracking-widest text-[10px] hover:bg-red-700"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" /> Delete
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       ) : (
         <div className="space-y-6">

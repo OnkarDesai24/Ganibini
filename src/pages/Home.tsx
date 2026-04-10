@@ -7,6 +7,7 @@ import { buttonVariants } from '@/components/ui/button';
 import { ChevronRight, TrendingUp, Clock, Sparkles, Play, Music } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 export default function Home() {
   const [trendingSongs, setTrendingSongs] = useState<Song[]>([]);
@@ -19,11 +20,13 @@ export default function Home() {
         // Fetch approved songs. We use a simple query to avoid index requirements and permission errors.
         const latestQuery = query(
           collection(db, 'songs'), 
-          where('status', '==', 'approved'),
+          where('status', 'in', ['approved', 'Approved', 'APPROVED']),
           limit(50)
         );
         const latestSnap = await getDocs(latestQuery);
         const approvedSongs = latestSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Song));
+        
+        console.log(`Fetched ${approvedSongs.length} approved songs`);
         
         // Trending (filter in memory to avoid complex composite index)
         const trending = approvedSongs.filter(s => s.is_trending).slice(0, 6);
@@ -38,6 +41,8 @@ export default function Home() {
         
         setLatestSongs(sortedLatest.slice(0, 12));
       } catch (error) {
+        console.error("Error fetching home data:", error);
+        toast.error("Failed to load songs. Please check your internet or database status.");
         handleFirestoreError(error, OperationType.LIST, 'songs');
       } finally {
         setLoading(false);

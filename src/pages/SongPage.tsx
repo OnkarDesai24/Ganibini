@@ -86,10 +86,38 @@ export default function SongPage() {
               setSong(songData);
               fetchRelated(songData);
             } else {
-              setSong(null);
+              // One last check: maybe it's approved but with different casing?
+              const caseQ = query(
+                collection(db, 'songs'), 
+                where('slug', '==', slug), 
+                where('status', 'in', ['Approved', 'APPROVED']),
+                limit(1)
+              );
+              const caseSnap = await getDocs(caseQ);
+              if (!caseSnap.empty) {
+                const songData = { id: caseSnap.docs[0].id, ...(caseSnap.docs[0].data() as object) } as Song;
+                setSong(songData);
+                fetchRelated(songData);
+              } else {
+                setSong(null);
+              }
             }
           } else {
-            setSong(null);
+            // Check for case-insensitive approved for public users too
+            const caseQ = query(
+              collection(db, 'songs'), 
+              where('slug', '==', slug), 
+              where('status', 'in', ['Approved', 'APPROVED']),
+              limit(1)
+            );
+            const caseSnap = await getDocs(caseQ);
+            if (!caseSnap.empty) {
+              const songData = { id: caseSnap.docs[0].id, ...(caseSnap.docs[0].data() as object) } as Song;
+              setSong(songData);
+              fetchRelated(songData);
+            } else {
+              setSong(null);
+            }
           }
         }
       } catch (error) {

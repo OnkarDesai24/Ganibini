@@ -25,7 +25,7 @@ export default function SearchPage() {
         // For a real production app, we'd use Algolia or similar.
         const q = query(
           collection(db, 'songs'), 
-          where('status', '==', 'approved')
+          where('status', 'in', ['approved', 'Approved', 'APPROVED'])
         );
         const snap = await getDocs(q);
         const allSongsData = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Song));

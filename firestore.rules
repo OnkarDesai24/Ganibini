@@ -80,7 +80,7 @@ service cloud.firestore {
              data.artist_names is list &&
              data.language is string &&
              data.lyrics is map && data.lyrics.mr is string &&
-             data.status in ['pending', 'approved', 'rejected'] &&
+             data.status.lower() in ['pending', 'approved', 'rejected'] &&
              data.created_at is timestamp &&
              (!('youtube_link' in data) || isValidUrl(data.youtube_link)) &&
              (!('year' in data) || (data.year is number && data.year >= 1900 && data.year <= 2100)) &&
@@ -101,12 +101,12 @@ service cloud.firestore {
 
     match /songs/{songId} {
       // Allow public read for approved songs, or if owner/admin
-      allow read: if resource.data.status == 'approved' || isAdmin() || (isAuthenticated() && resource.data.submitted_by == request.auth.uid);
+      allow read: if resource.data.status.lower() == 'approved' || isAdmin() || (isAuthenticated() && resource.data.submitted_by == request.auth.uid);
       
       // Allow authenticated users to create pending songs
       allow create: if isAuthenticated() && 
                       isValidSong(request.resource.data) && 
-                      request.resource.data.status == 'pending' &&
+                      request.resource.data.status.lower() == 'pending' &&
                       request.resource.data.submitted_by == request.auth.uid &&
                       isRecent(request.resource.data.created_at);
       
