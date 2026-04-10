@@ -16,25 +16,21 @@ export default function Home() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const trendingQuery = query(
-          collection(db, 'songs'), 
-          where('is_trending', '==', true), 
-          where('status', '==', 'approved'),
-          limit(6)
-        );
-        const trendingSnap = await getDocs(trendingQuery);
-        setTrendingSongs(trendingSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Song)));
-
+        // Fetch approved songs. We use a simple query to avoid index requirements and permission errors.
         const latestQuery = query(
           collection(db, 'songs'), 
           where('status', '==', 'approved'),
-          limit(50) // Fetch a reasonable amount to sort in memory
+          limit(50)
         );
         const latestSnap = await getDocs(latestQuery);
-        const latestData = latestSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Song));
+        const approvedSongs = latestSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Song));
         
-        // Sort in memory to handle missing created_at
-        const sortedLatest = latestData.sort((a, b) => {
+        // Trending (filter in memory to avoid complex composite index)
+        const trending = approvedSongs.filter(s => s.is_trending).slice(0, 6);
+        setTrendingSongs(trending);
+
+        // Latest (sort by created_at in memory to handle missing fields)
+        const sortedLatest = [...approvedSongs].sort((a, b) => {
           const timeA = a.created_at instanceof Date ? a.created_at.getTime() : (a.created_at?.toMillis?.() || 0);
           const timeB = b.created_at instanceof Date ? b.created_at.getTime() : (b.created_at?.toMillis?.() || 0);
           return timeB - timeA;

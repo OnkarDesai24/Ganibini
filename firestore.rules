@@ -100,8 +100,8 @@ service cloud.firestore {
     // ===============================================================
 
     match /songs/{songId} {
-      // Allow public read for approved songs
-      allow read: if resource.data.status == 'approved' || isAdmin();
+      // Allow public read for approved songs, or if owner/admin
+      allow read: if resource.data.status == 'approved' || isAdmin() || (isAuthenticated() && resource.data.submitted_by == request.auth.uid);
       
       // Allow authenticated users to create pending songs
       allow create: if isAuthenticated() && 

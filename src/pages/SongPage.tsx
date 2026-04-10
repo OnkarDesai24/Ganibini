@@ -45,39 +45,35 @@ export default function SongPage() {
       if (!slug) return;
       setLoading(true);
       try {
-        // If admin, we can fetch any status. If not, we only fetch approved.
-        // However, to keep it simple and avoid permission errors for public users,
-        // we always try to fetch with status='approved' first, or handle it based on auth.
-        let q;
-        if (isAdmin) {
-          q = query(collection(db, 'songs'), where('slug', '==', slug), limit(1));
-        } else {
-          q = query(collection(db, 'songs'), where('slug', '==', slug), where('status', '==', 'approved'), limit(1));
-        }
+        // 1. Try to fetch as approved (allowed for everyone)
+        const approvedQ = query(
+          collection(db, 'songs'), 
+          where('slug', '==', slug), 
+          where('status', '==', 'approved'), 
+          limit(1)
+        );
+        const approvedSnap = await getDocs(approvedQ);
         
-        const snap = await getDocs(q);
-        
-        if (!snap.empty) {
-          const songData = { id: snap.docs[0].id, ...(snap.docs[0].data() as object) } as Song;
+        if (!approvedSnap.empty) {
+          const songData = { id: approvedSnap.docs[0].id, ...(approvedSnap.docs[0].data() as object) } as Song;
           setSong(songData);
-
-          // Fetch Related
-          const relatedQ = query(
-            collection(db, 'songs'),
-            where('movie', '==', songData.movie),
-            where('status', '==', 'approved'),
-            limit(5)
-          );
-          const relatedSnap = await getDocs(relatedQ);
-          setRelatedSongs(
-            relatedSnap.docs
-              .map(d => ({ id: d.id, ...(d.data() as object) } as Song))
-              .filter(s => s.slug !== slug)
-          );
-        } else if (!isAdmin) {
-          // If not found as approved, maybe it's pending and user is the owner?
-          // We can try one more fetch if authenticated
+          fetchRelated(songData);
+        } else {
+          // 2. If not found as approved, check if user is admin or owner
           if (auth.currentUser) {
+            // If admin, they can see any status
+            if (isAdmin) {
+              const adminQ = query(collection(db, 'songs'), where('slug', '==', slug), limit(1));
+              const adminSnap = await getDocs(adminQ);
+              if (!adminSnap.empty) {
+                const songData = { id: adminSnap.docs[0].id, ...(adminSnap.docs[0].data() as object) } as Song;
+                setSong(songData);
+                fetchRelated(songData);
+                return;
+              }
+            }
+            
+            // If not admin, maybe they are the owner?
             const ownerQ = query(
               collection(db, 'songs'), 
               where('slug', '==', slug), 
@@ -86,14 +82,39 @@ export default function SongPage() {
             );
             const ownerSnap = await getDocs(ownerQ);
             if (!ownerSnap.empty) {
-              setSong({ id: ownerSnap.docs[0].id, ...(ownerSnap.docs[0].data() as object) } as Song);
+              const songData = { id: ownerSnap.docs[0].id, ...(ownerSnap.docs[0].data() as object) } as Song;
+              setSong(songData);
+              fetchRelated(songData);
+            } else {
+              setSong(null);
             }
+          } else {
+            setSong(null);
           }
         }
       } catch (error) {
         handleFirestoreError(error, OperationType.GET, `songs/${slug}`);
       } finally {
         setLoading(false);
+      }
+    };
+
+    const fetchRelated = async (songData: Song) => {
+      try {
+        const relatedQ = query(
+          collection(db, 'songs'),
+          where('movie', '==', songData.movie),
+          where('status', '==', 'approved'),
+          limit(5)
+        );
+        const relatedSnap = await getDocs(relatedQ);
+        setRelatedSongs(
+          relatedSnap.docs
+            .map(d => ({ id: d.id, ...(d.data() as object) } as Song))
+            .filter(s => s.slug !== slug)
+        );
+      } catch (e) {
+        console.error("Error fetching related songs", e);
       }
     };
 
@@ -106,7 +127,15 @@ export default function SongPage() {
       <div className="w-12 h-12 border-4 border-primary border-t-transparent animate-spin"></div>
     </div>
   );
-  if (!song) return <div className="container mx-auto p-20 text-center font-black uppercase tracking-widest">Song not found.</div>;
+  if (!song) return (
+    <div className="container mx-auto p-20 text-center space-y-4">
+      <div className="font-black uppercase tracking-widest text-2xl">Song not found.</div>
+      <p className="text-slate-500 text-sm">We couldn't find a song with the slug: <code className="bg-slate-100 px-2 py-1 rounded">{slug}</code></p>
+      <div className="pt-8">
+        <Link to="/" className="text-primary font-bold uppercase tracking-widest hover:underline">Back to Home</Link>
+      </div>
+    </div>
+  );
 
   const getYoutubeId = (url: string) => {
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;

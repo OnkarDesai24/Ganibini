@@ -63,9 +63,18 @@ export default function AdminDashboard() {
 
   const fetchPendingSongs = async () => {
     try {
-      const q = query(collection(db, 'songs'), where('status', '==', 'pending'), orderBy('created_at', 'desc'));
+      const q = query(collection(db, 'songs'), where('status', '==', 'pending'));
       const snap = await getDocs(q);
-      setPendingSongs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Song)));
+      const songsData = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Song));
+      
+      // Sort in memory
+      const sortedSongs = songsData.sort((a, b) => {
+        const timeA = a.created_at instanceof Date ? a.created_at.getTime() : (a.created_at?.toMillis?.() || 0);
+        const timeB = b.created_at instanceof Date ? b.created_at.getTime() : (b.created_at?.toMillis?.() || 0);
+        return timeB - timeA;
+      });
+      
+      setPendingSongs(sortedSongs);
     } catch (error) {
       console.error("Error fetching pending songs", error);
     }
