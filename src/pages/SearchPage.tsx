@@ -25,11 +25,17 @@ export default function SearchPage() {
         // For a real production app, we'd use Algolia or similar.
         const q = query(
           collection(db, 'songs'), 
-          where('status', '==', 'approved'),
-          orderBy('created_at', 'desc')
+          where('status', '==', 'approved')
         );
         const snap = await getDocs(q);
-        const allSongs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Song));
+        const allSongsData = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Song));
+        
+        // Sort in memory
+        const allSongs = allSongsData.sort((a, b) => {
+          const timeA = a.created_at instanceof Date ? a.created_at.getTime() : (a.created_at?.toMillis?.() || 0);
+          const timeB = b.created_at instanceof Date ? b.created_at.getTime() : (b.created_at?.toMillis?.() || 0);
+          return timeB - timeA;
+        });
         
         if (queryParam) {
           const filtered = allSongs.filter(s => {

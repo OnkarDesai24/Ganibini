@@ -20,11 +20,19 @@ export default function CategoryPage() {
         const q = query(
           collection(db, 'songs'),
           where('genre', '==', categoryName),
-          where('status', '==', 'approved'),
-          orderBy('created_at', 'desc')
+          where('status', '==', 'approved')
         );
         const snap = await getDocs(q);
-        setSongs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Song)));
+        const songsData = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Song));
+        
+        // Sort in memory
+        const sortedSongs = songsData.sort((a, b) => {
+          const timeA = a.created_at instanceof Date ? a.created_at.getTime() : (a.created_at?.toMillis?.() || 0);
+          const timeB = b.created_at instanceof Date ? b.created_at.getTime() : (b.created_at?.toMillis?.() || 0);
+          return timeB - timeA;
+        });
+        
+        setSongs(sortedSongs);
       } catch (error) {
         handleFirestoreError(error, OperationType.LIST, `songs/category/${name}`);
       } finally {

@@ -28,11 +28,19 @@ export default function Home() {
         const latestQuery = query(
           collection(db, 'songs'), 
           where('status', '==', 'approved'),
-          orderBy('created_at', 'desc'), 
-          limit(12)
+          limit(50) // Fetch a reasonable amount to sort in memory
         );
         const latestSnap = await getDocs(latestQuery);
-        setLatestSongs(latestSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Song)));
+        const latestData = latestSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Song));
+        
+        // Sort in memory to handle missing created_at
+        const sortedLatest = latestData.sort((a, b) => {
+          const timeA = a.created_at instanceof Date ? a.created_at.getTime() : (a.created_at?.toMillis?.() || 0);
+          const timeB = b.created_at instanceof Date ? b.created_at.getTime() : (b.created_at?.toMillis?.() || 0);
+          return timeB - timeA;
+        });
+        
+        setLatestSongs(sortedLatest.slice(0, 12));
       } catch (error) {
         handleFirestoreError(error, OperationType.LIST, 'songs');
       } finally {
